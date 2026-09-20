@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>لوحة إدارة الاشتراكات</title>
+<link rel="manifest" href="data:application/manifest+json,{%22name%22:%22لوحة%20إدارة%20الاشتراكات%22,%22display%22:%22standalone%22,%22start_url%22:%22.%22}">
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --primary:#1a73e8; --success:#0f9d58; --danger:#d93025; --warn:#c47d00;
+    --bg:#f5f7fa; --card:#fff; --border:#e0e3e8; --text:#202124; --text-light:#5f6368;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  .screen{display:none;min-height:100vh;padding:20px}
+  .screen.active{display:flex;flex-direction:column;align-items:center}
+  .container{width:100%;max-width:440px;background:var(--card);border-radius:var(--radius);padding:26px 20px;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-top:40px}
+  .logo{font-size:50px;text-align:center;margin-bottom:6px}
+  h2{text-align:center;margin:0 0 6px}
+  p.hint{text-align:center;color:var(--text-light);font-size:14px;margin-bottom:18px}
+  .input-group{margin-bottom:14px}
+  label{display:block;font-size:13px;color:var(--text-light);margin-bottom:5px}
+  input,select,textarea{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;font-size:15px;font-family:inherit;background:#fff;color:var(--text)}
+  .btn{display:block;width:100%;padding:13px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;text-align:center;text-decoration:none}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-success{background:var(--success);color:#fff}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-secondary{background:#eef1f4;color:var(--text)}
+  .btn-sm{padding:9px;font-size:13px;margin-top:0}
+  .err{color:var(--danger);font-size:13px;margin:0 0 10px;text-align:center}
+  .hidden{display:none!important}
+  .pin-dots{display:flex;justify-content:center;gap:14px;margin:18px 0}
+  .pin-dots span{width:16px;height:16px;border-radius:50%;border:2px solid var(--primary);display:inline-block}
+  .pin-dots span.filled{background:var(--primary)}
+  .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:280px;margin:0 auto}
+  .keypad button{padding:16px;font-size:20px;border:none;border-radius:12px;background:#eef1f4;cursor:pointer}
+  .topbar{width:100%;max-width:600px;display:flex;justify-content:space-between;align-items:center;padding:6px 4px 16px}
+  .topbar h1{font-size:18px;margin:0}
+  .tabs{display:flex;gap:8px;width:100%;max-width:600px;margin-bottom:14px}
+  .tab{flex:1;text-align:center;padding:10px;border-radius:10px;background:#eef1f4;cursor:pointer;font-weight:700;font-size:14px}
+  .tab.active{background:var(--primary);color:#fff}
+  .list{width:100%;max-width:600px;display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--card);border-radius:var(--radius);padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  .card-row{display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px}
+  .card-row b{color:var(--text-light);font-weight:600}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700}
+  .badge.pending{background:#fff8e1;color:var(--warn)}
+  .badge.approved{background:#e6f4ea;color:var(--success)}
+  .badge.rejected{background:#fce8e6;color:var(--danger)}
+  .badge.active{background:#e6f4ea;color:var(--success)}
+  .badge.trial{background:#e8f0fe;color:var(--primary)}
+  .badge.expired{background:#fce8e6;color:var(--danger)}
+  .badge.suspended{background:#f1f3f4;color:var(--text-light)}
+  .card-actions{display:flex;gap:8px;margin-top:10px}
+  .card-actions .btn{margin-top:0}
+  .empty-msg{text-align:center;color:var(--text-light);padding:40px 0}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+  .modal-box{background:#fff;border-radius:var(--radius);padding:20px;width:100%;max-width:400px;max-height:90vh;overflow:auto}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;z-index:100;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%;text-align:center}
+  .toast.show{opacity:1}
+  .toast.success{background:#0f9d58} .toast.error{background:#d93025}
+  .loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;z-index:200;font-size:16px}
+</style>
+</head>
+<body>
+
+<!-- شاشة تسجيل دخول الإدارة -->
+<div id="login-screen" class="screen active">
+  <div class="container">
+    <div class="logo">🛡️</div>
+    <h2>لوحة إدارة الاشتراكات</h2>
+    <p class="hint">هذا التطبيق مخصص لمدير النظام فقط</p>
+    <div class="input-group">
+      <label>البريد الإلكتروني</label>
+      <input type="email" id="login-email" autocomplete="email" placeholder="example@gmail.com">
+    </div>
+    <div class="input-group">
+      <label>كلمة المرور</label>
+      <input type="password" id="login-password" autocomplete="current-password">
+    </div>
+    <p id="login-error" class="err hidden"></p>
+    <button id="login-btn" class="btn btn-primary">تسجيل الدخول</button>
+  </div>
+</div>
+
+<!-- شاشة "ليس لديك صلاحية" -->
+<div id="denied-screen" class="screen">
+  <div class="container">
+    <div class="logo">⛔</div>
+    <h2>لا تملك صلاحية الوصول</h2>
+    <p class="hint">هذا الحساب غير مُدرج كحساب إدارة. تواصل مع المطوّر إن كنت تعتقد أن هذا خطأ.</p>
+    <button id="denied-logout-btn" class="btn btn-secondary">تسجيل الخروج</button>
+  </div>
+</div>
+
+<!-- شاشة إنشاء رمز الحماية المحلي (أول مرة على هذا الجهاز) -->
+<div id="setup-pin-screen" class="screen">
+  <div class="container">
+    <div class="logo">🔒</div>
+    <h2>إنشاء رمز حماية محلي</h2>
+    <p class="hint">لحماية سريعة لهذا الجهاز دون تكرار البريد وكلمة المرور كل مرة</p>
+    <div class="pin-dots" id="setup-pin-dots"></div>
+    <div class="keypad" id="setup-pin-keypad"></div>
+    <p id="setup-pin-msg" class="hint" style="margin-top:10px"></p>
+  </div>
+</div>
+
+<!-- شاشة القفل المحلي -->
+<div id="lock-screen" class="screen">
+  <div class="container">
+    <div class="logo">🔒</div>
+    <h2>أدخل رمز الحماية</h2>
+    <div class="pin-dots" id="lock-pin-dots"></div>
+    <div class="keypad" id="lock-pin-keypad"></div>
+    <p id="lock-error" class="err hidden">رمز غير صحيح</p>
+    <button id="lock-fp-btn" class="btn btn-secondary hidden">👆 استخدام البصمة</button>
+  </div>
+</div>
+
+<!-- لوحة التحكم -->
+<div id="dashboard-screen" class="screen">
+  <div class="topbar">
+    <h1>🛡️ لوحة الإدارة</h1>
+    <button id="logout-btn" class="btn btn-secondary btn-sm" style="width:auto;padding:8px 14px">خروج</button>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-tab="requests">طلبات الدفع</div>
+    <div class="tab" data-tab="users">المستخدمون</div>
+  </div>
+
+  <div id="tab-requests" class="list">
+    <div class="tabs" style="margin-bottom:10px">
+      <div class="tab active" data-reqfilter="pending">قيد المراجعة</div>
+      <div class="tab" data-reqfilter="approved">مؤكدة</div>
+      <div class="tab" data-reqfilter="rejected">مرفوضة</div>
+      <div class="tab" data-reqfilter="all">الكل</div>
+    </div>
+    <div id="requests-list"></div>
+  </div>
+
+  <div id="tab-users" class="list hidden">
+    <div class="input-group" style="width:100%">
+      <input type="text" id="users-search" placeholder="🔍 بحث بالبريد أو رقم الهاتف">
+    </div>
+    <div id="users-list"></div>
+  </div>
+</div>
+
+<!-- نافذة تعديل اشتراك مستخدم يدوياً -->
+<div id="edit-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h2 style="margin-top:0">تعديل الاشتراك</h2>
+    <div class="input-group">
+      <label>الحالة</label>
+      <select id="edit-status">
+        <option value="trial">تجريبي</option>
+        <option value="active">فعال</option>
+        <option value="expired">منتهي</option>
+        <option value="suspended">موقوف</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label>نوع الاشتراك</label>
+      <select id="edit-type">
+        <option value="">بدون</option>
+        <option value="monthly">شهري</option>
+        <option value="yearly">سنوي</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label>تاريخ انتهاء الاشتراك</label>
+      <input type="date" id="edit-end">
+    </div>
+    <button id="edit-save-btn" class="btn btn-primary">حفظ التعديلات</button>
+    <button id="edit-cancel-btn" class="btn btn-secondary">إلغاء</button>
+  </div>
+</div>
+
+<div id="loading" class="loading-overlay hidden">⏳ جارٍ التحميل...</div>
+<div id="toast" class="toast"></div>
+
+<script>
+'use strict';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDt5hK1AoRIRPdXKvOIzUEfQnGT28cvbWM",
+  authDomain: "mohsen-b6c85.firebaseapp.com",
+  databaseURL: "https://mohsen-b6c85-default-rtdb.firebaseio.com",
+  projectId: "mohsen-b6c85",
+  storageBucket: "mohsen-b6c85.firebasestorage.app",
+  messagingSenderId: "329188011604",
+  appId: "1:329188011604:web:54efd4bc7b70390f6dc7c1",
+  measurementId: "G-1YD2JRX3ZV"
+};
+
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+let fbAuth=null, fbDb=null, firebaseReady=false;
+let currentUid = null;
+function pinKey(){ return 'admin_pinHash_'+currentUid; }
+function fpKey(){ return 'admin_fpCredId_'+currentUid; }
+let requestsData = []; // {uid, requestId, ...}
+let usersData = {};    // uid -> userObj
+let currentReqFilter = 'pending';
+let serverOffset = 0;
+
+function nowServer(){ return Date.now() + serverOffset; }
+
+function showScreen(id){
+  $$('.screen').forEach(s=> s.classList.remove('active'));
+  $('#'+id).classList.add('active');
+}
+function toast(msg, type){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' '+type : '');
+  setTimeout(()=> t.classList.remove('show'), 2600);
+}
+function showLoading(v){ $('#loading').classList.toggle('hidden', !v); }
+function fmt(n){ return Number(n||0).toLocaleString('en-US'); }
+function fmtDate(ms){ return ms ? new Date(ms).toLocaleString('ar') : '—'; }
+
+/* ---------------- Firebase init ---------------- */
+function initFirebase(){
+  try{
+    if(typeof firebase === 'undefined') throw new Error('SDK not loaded');
+    firebase.initializeApp(firebaseConfig);
+    fbAuth = firebase.auth();
+    fbDb = firebase.database();
+    firebaseReady = true;
+    fbDb.ref('.info/serverTimeOffset').on('value', snap=>{ serverOffset = snap.val()||0; });
+  }catch(e){ console.error(e); firebaseReady=false; toast('تعذر تحميل Firebase، تحقق من الإنترنت وأعد فتح الصفحة','error'); }
+}
+
+/* ---------------- PIN hashing ---------------- */
+async function hashPin(pin){
+  const enc = new TextEncoder().encode(pin);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function bufToB64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function b64ToBuf(b64){ return Uint8Array.from(atob(b64), c=>c.charCodeAt(0)).buffer; }
+
+/* ---------------- جسر البصمة الأصلي (عند التغليف داخل تطبيق أندرويد) ---------------- */
+function hasNativeBiometric(){
+  try{ return !!(window.AndroidAuth && window.AndroidAuth.isAvailable && window.AndroidAuth.isAvailable()); }
+  catch(e){ return false; }
+}
+function nativeBiometricAuthenticate(){
+  return new Promise(resolve=>{
+    window.__onAndroidAuthResult = ok=>{ delete window.__onAndroidAuthResult; resolve(!!ok); };
+    try{ window.AndroidAuth.authenticate(); }
+    catch(e){ delete window.__onAndroidAuthResult; resolve(false); }
+  });
+}
+function nativeFpKey(){ return 'admin_nativeFp_'+currentUid; }
+
+/* ---------------- البصمة (أصلية عند توفرها، وإلا WebAuthn) ---------------- */
+async function registerFingerprint(){
+  if(hasNativeBiometric()){
+    localStorage.setItem(nativeFpKey(), '1');
+    return true;
+  }
+  if(!window.PublicKeyCredential){ return false; }
+  try{
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const userId = crypto.getRandomValues(new Uint8Array(16));
+    const cred = await navigator.credentials.create({
+      publicKey:{
+        challenge, rp:{ name:'لوحة إدارة الاشتراكات' },
+        user:{ id:userId, name:'admin', displayName:'مدير النظام' },
+        pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+        authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required' },
+        timeout:60000
+      }
+    });
+    if(!cred) return false;
+    localStorage.setItem(fpKey(), bufToB64(cred.rawId));
+    return true;
+  }catch(e){ console.error(e); return false; }
+}
+async function verifyFingerprint(){
+  if(localStorage.getItem(nativeFpKey()) === '1' && hasNativeBiometric()){
+    return await nativeBiometricAuthenticate();
+  }
+  const credId = localStorage.getItem(fpKey());
+  if(!credId || !window.PublicKeyCredential) return false;
+  try{
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const assertion = await navigator.credentials.get({
+      publicKey:{ challenge, allowCredentials:[{id:b64ToBuf(credId),type:'public-key'}], userVerification:'required', timeout:60000 }
+    });
+    return !!assertion;
+  }catch(e){ console.error(e); return false; }
+}
+
+/* ---------------- تدفق الدخول والحماية المحلية ---------------- */
+function watchAuth(){
+  if(!fbAuth) return;
+  fbAuth.onAuthStateChanged(async user=>{
+    if(!user){ showScreen('login-screen'); return; }
+    showLoading(true);
+    try{
+      const snap = await fbDb.ref('admins/'+user.uid).once('value');
+      if(!snap.exists()){
+        showLoading(false);
+        showScreen('denied-screen');
+        return;
+      }
+    }catch(e){
+      console.error(e);
+      showLoading(false);
+      showScreen('denied-screen');
+      return;
+    }
+    currentUid = user.uid;
+    localStorage.setItem('admin_uid', user.uid);
+    localStorage.setItem('admin_email', user.email||'');
+    showLoading(false);
+    proceedAfterAdminVerified();
+  });
+}
+
+function proceedAfterAdminVerified(){
+  const pinHash = localStorage.getItem(pinKey());
+  if(!pinHash){
+    showScreen('setup-pin-screen');
+    renderPinKeypad('setup-pin-keypad', 'setup-pin-dots', onSetupPinComplete);
+  } else if(sessionStorage.getItem('admin_unlocked') !== '1'){
+    showScreen('lock-screen');
+    $('#lock-fp-btn').classList.toggle('hidden', !(localStorage.getItem(fpKey()) || localStorage.getItem(nativeFpKey())));
+    renderPinKeypad('lock-pin-keypad', 'lock-pin-dots', onLockPinComplete);
+  } else {
+    enterDashboard();
+  }
+}
+
+let pinBuffer = '';
+function renderPinKeypad(keypadId, dotsId, onComplete){
+  pinBuffer = '';
+  updatePinDots(dotsId, 0);
+  const kp = $('#'+keypadId);
+  kp.innerHTML = '';
+  const keys = ['1','2','3','4','5','6','7','8','9','⌫','0','✓'];
+  keys.forEach(k=>{
+    const b = document.createElement('button');
+    b.textContent = k;
+    b.addEventListener('click', ()=>{
+      if(k==='⌫'){ pinBuffer = pinBuffer.slice(0,-1); }
+      else if(k==='✓'){ if(pinBuffer.length>=4) onComplete(pinBuffer); return; }
+      else if(pinBuffer.length<8){ pinBuffer += k; }
+      updatePinDots(dotsId, pinBuffer.length);
+    });
+    kp.appendChild(b);
+  });
+}
+function updatePinDots(dotsId, count){
+  const el = $('#'+dotsId);
+  el.innerHTML = '';
+  const total = Math.max(count, 4);
+  for(let i=0;i<Math.max(total,4);i++){
+    const s = document.createElement('span');
+    if(i<count) s.classList.add('filled');
+    el.appendChild(s);
+  }
+}
+
+async function onSetupPinComplete(pin){
+  const hash = await hashPin(pin);
+  localStorage.setItem(pinKey(), hash);
+  sessionStorage.setItem('admin_unlocked','1');
+  $('#setup-pin-msg').textContent = 'جارٍ التفعيل...';
+  if(window.PublicKeyCredential){
+    const ok = await registerFingerprint();
+    if(ok) toast('تم تفعيل رمز الحماية والبصمة على هذا الجهاز','success');
+    else toast('تم تفعيل رمز الحماية (بدون بصمة)','success');
+  } else {
+    toast('تم تفعيل رمز الحماية','success');
+  }
+  enterDashboard();
+}
+
+async function onLockPinComplete(pin){
+  const hash = await hashPin(pin);
+  if(hash === localStorage.getItem(pinKey())){
+    sessionStorage.setItem('admin_unlocked','1');
+    enterDashboard();
+  } else {
+    $('#lock-error').classList.remove('hidden');
+    pinBuffer=''; updatePinDots('lock-pin-dots',0);
+    setTimeout(()=> $('#lock-error').classList.add('hidden'), 1500);
+  }
+}
+
+async function tryFingerprintUnlock(){
+  const ok = await verifyFingerprint();
+  if(ok){ sessionStorage.setItem('admin_unlocked','1'); enterDashboard(); }
+  else toast('تعذر التحقق بالبصمة','error');
+}
+
+function enterDashboard(){
+  showScreen('dashboard-screen');
+  listenRequests();
+  listenUsers();
+}
+
+/* ---------------- طلبات الدفع ---------------- */
+function listenRequests(){
+  fbDb.ref('paymentRequests').on('value', snap=>{
+    const arr = [];
+    snap.forEach(uidSnap=>{
+      uidSnap.forEach(reqSnap=>{
+        arr.push({ uid: uidSnap.key, requestId: reqSnap.key, ...reqSnap.val() });
+      });
+    });
+    arr.sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+    requestsData = arr;
+    renderRequests();
+  }, err=> console.error('requests listen error', err));
+}
+function renderRequests(){
+  const list = $('#requests-list');
+  const filtered = currentReqFilter==='all' ? requestsData : requestsData.filter(r=> r.status===currentReqFilter);
+  if(!filtered.length){ list.innerHTML = '<div class="empty-msg">لا توجد طلبات هنا</div>'; return; }
+  list.innerHTML = filtered.map(r=>`
+    <div class="card">
+      <div class="card-row"><b>الاسم</b><span>${esc(r.userName||'—')}</span></div>
+      <div class="card-row"><b>الهاتف</b><span>${esc(r.phone||'—')}</span></div>
+      <div class="card-row"><b>الفاتورة</b><span>${esc(r.invoiceNumber||'—')}</span></div>
+      <div class="card-row"><b>الخطة</b><span>${r.subscriptionType==='yearly'?'سنوي':'شهري'} — ${fmt(r.amount)} ريال</span></div>
+      <div class="card-row"><b>رقم/مرجع العملية</b><span>${esc(r.transferReference||'—')}</span></div>
+      ${r.receiptImage?`<img src="${r.receiptImage}" style="max-width:100%;border-radius:10px;margin-top:8px;display:block" alt="صورة الإيصال">`:''}
+      ${r.notes?`<div class="card-row"><b>ملاحظات</b><span>${esc(r.notes)}</span></div>`:''}
+      <div class="card-row"><b>التاريخ</b><span>${fmtDate(r.createdAt)}</span></div>
+      <div class="card-row"><b>الحالة</b><span class="badge ${r.status}">${statusLabel(r.status)}</span></div>
+      ${r.status==='pending'?`
+      <div class="card-actions">
+        <button class="btn btn-success btn-sm" style="flex:1" onclick="confirmPayment('${r.uid}','${r.requestId}')">✅ تأكيد الدفع</button>
+        <button class="btn btn-danger btn-sm" style="flex:1" onclick="rejectPayment('${r.uid}','${r.requestId}')">❌ رفض</button>
+      </div>`:''}
+    </div>
+  `).join('');
+}
+function statusLabel(s){
+  return {pending:'قيد المراجعة', approved:'مؤكد', rejected:'مرفوض', active:'فعال', trial:'تجريبي', expired:'منتهي', suspended:'موقوف'}[s] || s;
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function addInterval(fromMs, type){
+  const d = new Date(fromMs);
+  if(type==='yearly') d.setFullYear(d.getFullYear()+1);
+  else d.setMonth(d.getMonth()+1);
+  return d.getTime();
+}
+
+async function confirmPayment(uid, requestId){
+  if(!confirm('تأكيد أنك تحققت فعلياً من وصول التحويل البنكي؟')) return;
+  showLoading(true);
+  try{
+    const req = requestsData.find(r=> r.uid===uid && r.requestId===requestId);
+    if(!req) throw new Error('لم يتم العثور على الطلب');
+    const userSnap = await fbDb.ref('users/'+uid).once('value');
+    const user = userSnap.val() || {};
+    const now = nowServer();
+    const base = (user.subscriptionStatus==='active' && user.subscriptionEnd && user.subscriptionEnd > now) ? user.subscriptionEnd : now;
+    const newEnd = addInterval(base, req.subscriptionType);
+    await fbDb.ref('users/'+uid).update({
+      subscriptionStatus: 'active',
+      subscriptionType: req.subscriptionType,
+      subscriptionStart: now,
+      subscriptionEnd: newEnd
+    });
+    await fbDb.ref('paymentRequests/'+uid+'/'+requestId+'/status').set('approved');
+    await writeLog(uid, req.invoiceNumber, 'payment_confirmed');
+    toast('تم تفعيل الاشتراك بنجاح','success');
+  }catch(e){ console.error(e); toast('حدث خطأ: '+(e.message||''),'error'); }
+  showLoading(false);
+}
+async function rejectPayment(uid, requestId){
+  if(!confirm('تأكيد رفض هذا الطلب؟')) return;
+  showLoading(true);
+  try{
+    const req = requestsData.find(r=> r.uid===uid && r.requestId===requestId);
+    await fbDb.ref('paymentRequests/'+uid+'/'+requestId+'/status').set('rejected');
+    await writeLog(uid, req?req.invoiceNumber:null, 'payment_rejected');
+    toast('تم رفض الطلب','success');
+  }catch(e){ console.error(e); toast('حدث خطأ: '+(e.message||''),'error'); }
+  showLoading(false);
+}
+async function writeLog(userId, invoiceNumber, action){
+  try{
+    await fbDb.ref('logs').push({
+      userId, invoiceNumber: invoiceNumber||null, action,
+      timestamp: firebase.database.ServerValue.TIMESTAMP,
+      adminId: currentUid
+    });
+  }catch(e){ console.error('log error', e); }
+}
+
+/* ---------------- المستخدمون ---------------- */
+function listenUsers(){
+  fbDb.ref('users').on('value', snap=>{
+    usersData = snap.val() || {};
+    renderUsers();
+  }, err=> console.error('users listen error', err));
+}
+function renderUsers(){
+  const q = ($('#users-search').value||'').trim().toLowerCase();
+  const list = $('#users-list');
+  const entries = Object.entries(usersData).filter(([uid,u])=>{
+    if(!q) return true;
+    return (u.email||'').toLowerCase().includes(q) || (u.phone||'').includes(q);
+  }).sort((a,b)=> (b[1].createdAt||0)-(a[1].createdAt||0));
+  if(!entries.length){ list.innerHTML = '<div class="empty-msg">لا يوجد مستخدمون</div>'; return; }
+  list.innerHTML = entries.map(([uid,u])=>{
+    const status = computeDisplayStatus(u);
+    return `
+    <div class="card">
+      <div class="card-row"><b>البريد</b><span>${esc(u.email||'—')}</span></div>
+      <div class="card-row"><b>الهاتف</b><span>${esc(u.phone||'—')}</span></div>
+      <div class="card-row"><b>الحالة</b><span class="badge ${status}">${statusLabel(status)}</span></div>
+      <div class="card-row"><b>الخطة</b><span>${u.subscriptionType==='yearly'?'سنوي':(u.subscriptionType==='monthly'?'شهري':'—')}</span></div>
+      <div class="card-row"><b>الانتهاء</b><span>${fmtDate(u.subscriptionEnd || u.trialEnd)}</span></div>
+      <div class="card-actions">
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="openEditModal('${uid}')">✏️ تعديل يدوي</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function computeDisplayStatus(u){
+  const now = nowServer();
+  if(u.subscriptionStatus==='suspended') return 'suspended';
+  if(u.subscriptionStatus==='active') return (u.subscriptionEnd && now>u.subscriptionEnd) ? 'expired' : 'active';
+  if(u.trialEnd && now<=u.trialEnd) return 'trial';
+  return 'expired';
+}
+
+let editingUid = null;
+function openEditModal(uid){
+  editingUid = uid;
+  const u = usersData[uid] || {};
+  $('#edit-status').value = u.subscriptionStatus || 'trial';
+  $('#edit-type').value = u.subscriptionType || '';
+  const endMs = u.subscriptionEnd || u.trialEnd;
+  $('#edit-end').value = endMs ? new Date(endMs).toISOString().slice(0,10) : '';
+  $('#edit-modal').classList.remove('hidden');
+}
+async function saveEdit(){
+  if(!editingUid) return;
+  const status = $('#edit-status').value;
+  const type = $('#edit-type').value || null;
+  const endStr = $('#edit-end').value;
+  const endMs = endStr ? new Date(endStr+'T23:59:59').getTime() : null;
+  showLoading(true);
+  try{
+    await fbDb.ref('users/'+editingUid).update({
+      subscriptionStatus: status,
+      subscriptionType: type,
+      subscriptionEnd: endMs,
+      subscriptionStart: nowServer()
+    });
+    await writeLog(editingUid, null, 'manual_edit_by_admin');
+    toast('تم حفظ التعديلات','success');
+    $('#edit-modal').classList.add('hidden');
+  }catch(e){ console.error(e); toast('حدث خطأ: '+(e.message||''),'error'); }
+  showLoading(false);
+}
+
+/* ---------------- الأحداث ---------------- */
+function wireEvents(){
+  $('#login-btn').addEventListener('click', async ()=>{
+    const email = $('#login-email').value.trim();
+    const password = $('#login-password').value;
+    const errEl = $('#login-error');
+    errEl.classList.add('hidden');
+    if(!email || !password){ errEl.textContent='أدخل البريد وكلمة المرور'; errEl.classList.remove('hidden'); return; }
+    if(!firebaseReady){ toast('تعذر الاتصال بالخدمة','error'); return; }
+    showLoading(true);
+    try{ await fbAuth.signInWithEmailAndPassword(email, password); }
+    catch(e){ errEl.textContent = 'بيانات الدخول غير صحيحة أو تحقق من الاتصال'; errEl.classList.remove('hidden'); }
+    showLoading(false);
+  });
+  $('#denied-logout-btn').addEventListener('click', ()=> fbAuth && fbAuth.signOut());
+  $('#logout-btn').addEventListener('click', ()=>{
+    if(!confirm('تسجيل الخروج من حساب الإدارة على هذا الجهاز؟')) return;
+    fbDb.ref('paymentRequests').off(); fbDb.ref('users').off();
+    localStorage.removeItem(pinKey());
+    localStorage.removeItem(fpKey());
+    localStorage.removeItem(nativeFpKey());
+    sessionStorage.removeItem('admin_unlocked');
+    fbAuth.signOut();
+  });
+  $('#lock-fp-btn').addEventListener('click', tryFingerprintUnlock);
+
+  $$('.tab[data-tab]').forEach(t=> t.addEventListener('click', ()=>{
+    $$('.tab[data-tab]').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    $('#tab-requests').classList.toggle('hidden', t.dataset.tab!=='requests');
+    $('#tab-users').classList.toggle('hidden', t.dataset.tab!=='users');
+  }));
+  $$('.tab[data-reqfilter]').forEach(t=> t.addEventListener('click', ()=>{
+    $$('.tab[data-reqfilter]').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    currentReqFilter = t.dataset.reqfilter;
+    renderRequests();
+  }));
+  $('#users-search').addEventListener('input', renderUsers);
+  $('#edit-save-btn').addEventListener('click', saveEdit);
+  $('#edit-cancel-btn').addEventListener('click', ()=> $('#edit-modal').classList.add('hidden'));
+
+  // محاولة فتح البصمة تلقائياً عند ظهور شاشة القفل (إن كانت مفعّلة)
+  const lockObserver = new MutationObserver(()=>{
+    if($('#lock-screen').classList.contains('active') && (localStorage.getItem(fpKey()) || localStorage.getItem(nativeFpKey()))){
+      tryFingerprintUnlock();
+    }
+  });
+  lockObserver.observe($('#lock-screen'), {attributes:true, attributeFilter:['class']});
+}
+
+window.confirmPayment = confirmPayment;
+window.rejectPayment = rejectPayment;
+window.openEditModal = openEditModal;
+
+(function init(){
+  initFirebase();
+  wireEvents();
+  watchAuth();
+})();
+</script>
+</body>
+</html>
